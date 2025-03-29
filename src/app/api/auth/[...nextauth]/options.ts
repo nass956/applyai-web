@@ -15,7 +15,7 @@ async function sendVerificationRequest(params: SendVerificationRequestParams) {
   const { identifier, url, provider } = params
   
   // Correction de l'URL dans le contenu HTML
-  const correctedUrl = url.replace(/localhost:\d+/, "localhost:3001")
+  const correctedUrl = url.replace(/localhost:\d+/, 'localhost:3001')
   
   try {
     const { data, error } = await resend.emails.send({
@@ -56,6 +56,9 @@ export const authOptions: AuthOptions = {
     LinkedInProvider({
       clientId: process.env.LINKEDIN_CLIENT_ID!,
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
+      authorization: {
+        params: { scope: 'openid profile email' }
+      }
     }),
     AppleProvider({
       clientId: process.env.APPLE_ID!,
@@ -77,7 +80,11 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async redirect({ url, baseUrl }) {
       // S'assurer que l'URL utilise le bon port
-      return url.replace(/localhost:\d+/, "localhost:3001")
-    }
+      return url.replace(/localhost:\d+/, 'localhost:3001')
+    },
+    async signIn({ user, account, profile, email, credentials }) {
+      console.log("SIGNIN CALLBACK:", { user, account, profile })
+      return true
+    },
   }
 } 
