@@ -57,12 +57,17 @@ export async function fetchJobs(params: JobsQueryParams): Promise<Job[]> {
     // Paramètres de base requis par l'API
     const searchParams = new URLSearchParams()
 
-    // Format de date attendu par l'API : YYYY-MM-DD
+    // Format de date attendu par l'API : YYYY-MM-DDTHH:MM:SSZ
     const today = new Date()
     const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
     
-    searchParams.append('minCreationDate', thirtyDaysAgo.toISOString().split('T')[0])
-    searchParams.append('maxCreationDate', today.toISOString().split('T')[0])
+    // Formatage des dates au format ISO-8601
+    const formatDateISO = (date: Date) => {
+      return date.toISOString().split('.')[0] + 'Z'
+    }
+    
+    searchParams.append('minCreationDate', formatDateISO(thirtyDaysAgo))
+    searchParams.append('maxCreationDate', formatDateISO(today))
     searchParams.append('range', '0-14')
 
     if (params.query) {
