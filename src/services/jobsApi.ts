@@ -1,14 +1,14 @@
 import { Job, JobsQueryParams } from '@/types/jobs'
 
 const POLE_EMPLOI_AUTH_URL = 'https://entreprise.pole-emploi.fr/connexion/oauth2/access_token?realm=%2Fpartenaire'
-const POLE_EMPLOI_API_URL = 'https://api.pole-emploi.io/partenaire/offresdemploi/v2/offres/recherche'
+const POLE_EMPLOI_API_URL = 'https://api.pole-emploi.io/partenaire/offresdemploi/v2/offres'
 
 async function getAccessToken(): Promise<string> {
   const params = new URLSearchParams({
     grant_type: 'client_credentials',
     client_id: process.env.POLE_EMPLOI_CLIENT_ID!,
     client_secret: process.env.POLE_EMPLOI_CLIENT_SECRET!,
-    scope: 'api_offresdemploiv2'
+    scope: 'api_offresdemploiv2 application_PAR_just4work_54a265ab410eea5132043f49c56632b1caaf0f7cd590a74db2040e3b4be27704 o2dsoffre'
   })
 
   try {
@@ -16,7 +16,7 @@ async function getAccessToken(): Promise<string> {
       url: POLE_EMPLOI_AUTH_URL,
       clientIdLength: process.env.POLE_EMPLOI_CLIENT_ID?.length,
       clientSecretLength: process.env.POLE_EMPLOI_CLIENT_SECRET?.length,
-      scope: 'api_offresdemploiv2'
+      scope: params.get('scope')
     })
 
     const response = await fetch(POLE_EMPLOI_AUTH_URL, {
@@ -40,7 +40,8 @@ async function getAccessToken(): Promise<string> {
     const data = await response.json()
     console.log('Token obtenu avec succès:', {
       tokenLength: data.access_token?.length,
-      expiresIn: data.expires_in
+      expiresIn: data.expires_in,
+      scope: data.scope
     })
     return data.access_token
   } catch (error) {
@@ -54,11 +55,15 @@ export async function fetchJobs(params: JobsQueryParams): Promise<Job[]> {
     const accessToken = await getAccessToken()
     
     // Paramètres de base requis par l'API
-    const searchParams = new URLSearchParams({
-      minCreationDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 derniers jours
-      maxCreationDate: new Date().toISOString(),
-      range: '0-14'
-    })
+    const searchParams = new URLSearchParams()
+
+    // Format de date attendu par l'API : YYYY-MM-DD
+    const today = new Date()
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+    
+    searchParams.append('minCreationDate', thirtyDaysAgo.toISOString().split('T')[0])
+    searchParams.append('maxCreationDate', today.toISOString().split('T')[0])
+    searchParams.append('range', '0-14')
 
     if (params.query) {
       searchParams.append('motsCles', params.query)
@@ -72,11 +77,15 @@ export async function fetchJobs(params: JobsQueryParams): Promise<Job[]> {
       searchParams.set('range', `${start}-${start + range - 1}`)
     }
     
-    const url = `${POLE_EMPLOI_API_URL}?${searchParams.toString()}`
+    const url = `${POLE_EMPLOI_API_URL}/search?${searchParams.toString()}`
     
     console.log('Tentative de récupération des offres:', {
       url,
-      params: Object.fromEntries(searchParams.entries())
+      params: Object.fromEntries(searchParams.entries()),
+      headers: {
+        'Authorization': 'Bearer [...]',
+        'Accept': 'application/json'
+      }
     })
 
     const response = await fetch(url, {
@@ -93,7 +102,8 @@ export async function fetchJobs(params: JobsQueryParams): Promise<Job[]> {
       console.error('Erreur lors de la récupération des offres:', {
         status: response.status,
         statusText: response.statusText,
-        body: responseText
+        body: responseText,
+        headers: Object.fromEntries(response.headers)
       })
       throw new Error(`Failed to fetch jobs: ${response.status} ${response.statusText}`)
     }
