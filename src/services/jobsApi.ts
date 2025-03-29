@@ -1,34 +1,47 @@
 import { Job, JobsQueryParams } from '@/types/jobs'
 
-const POLE_EMPLOI_AUTH_URL = 'https://entreprise.pole-emploi.fr/connexion/oauth2/access_token'
+const POLE_EMPLOI_AUTH_URL = 'https://entreprise.pole-emploi.fr/connexion/oauth2/access_token?realm=%2Fpartenaire'
 const POLE_EMPLOI_API_URL = 'https://api.pole-emploi.io/partenaire/offresdemploi/v2/offres/search'
 
 async function getAccessToken(): Promise<string> {
   const params = new URLSearchParams({
-    realm: '/partenaire',
     grant_type: 'client_credentials',
     client_id: process.env.POLE_EMPLOI_CLIENT_ID!,
     client_secret: process.env.POLE_EMPLOI_CLIENT_SECRET!,
-    scope: 'api_offresdemploiv2 o2dsoffre'
+    scope: 'api_offresdemploiv2'
   })
 
   try {
+    console.log('Tentative d\'obtention du token avec les paramètres:', {
+      url: POLE_EMPLOI_AUTH_URL,
+      clientIdLength: process.env.POLE_EMPLOI_CLIENT_ID?.length,
+      clientSecretLength: process.env.POLE_EMPLOI_CLIENT_SECRET?.length,
+      scope: 'api_offresdemploiv2'
+    })
+
     const response = await fetch(POLE_EMPLOI_AUTH_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: params
+      body: params.toString()
     })
 
     if (!response.ok) {
-      throw new Error('Failed to get access token')
+      const errorText = await response.text()
+      console.error('Erreur de réponse:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      })
+      throw new Error(`Failed to get access token: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json()
+    console.log('Token obtenu avec succès')
     return data.access_token
   } catch (error) {
-    console.error('Error getting access token:', error)
+    console.error('Erreur détaillée:', error)
     throw error
   }
 }
