@@ -9,13 +9,10 @@ import { Resend } from "resend"
 import { prisma } from "@/lib/prisma"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3001"
+const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000"
 
 async function sendVerificationRequest(params: SendVerificationRequestParams) {
   const { identifier, url, provider } = params
-  
-  // Correction de l'URL dans le contenu HTML
-  const correctedUrl = url.replace(/localhost:\d+/, 'localhost:3001')
   
   try {
     const { data, error } = await resend.emails.send({
@@ -26,11 +23,11 @@ async function sendVerificationRequest(params: SendVerificationRequestParams) {
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2>Lien de connexion</h2>
           <p>Cliquez sur le lien ci-dessous pour vous connecter :</p>
-          <a href="${correctedUrl}" style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px;">
+          <a href="${url}" style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px;">
             Se connecter
           </a>
           <p style="margin-top: 20px; font-size: 14px; color: #666;">
-            Si le bouton ne fonctionne pas, copiez ce lien : ${correctedUrl}
+            Si le bouton ne fonctionne pas, copiez ce lien : ${url}
           </p>
         </div>
       `,
@@ -78,10 +75,6 @@ export const authOptions: AuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async redirect({ url, baseUrl }) {
-      // S'assurer que l'URL utilise le bon port
-      return url.replace(/localhost:\d+/, 'localhost:3001')
-    },
     async signIn({ user, account, profile, email, credentials }) {
       console.log("SIGNIN CALLBACK:", { user, account, profile })
       return true
