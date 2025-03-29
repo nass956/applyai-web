@@ -1,7 +1,7 @@
 import { Job, JobsQueryParams } from '@/types/jobs'
 
 const POLE_EMPLOI_AUTH_URL = 'https://entreprise.pole-emploi.fr/connexion/oauth2/access_token?realm=%2Fpartenaire'
-const POLE_EMPLOI_API_URL = 'https://api.pole-emploi.io/partenaire/offresdemploi/v2/offres/search'
+const POLE_EMPLOI_API_URL = 'https://api.emploi-store.fr/partenaire/offresdemploi/v2/offres/search'
 
 async function getAccessToken(): Promise<string> {
   const params = new URLSearchParams({
@@ -50,7 +50,12 @@ export async function fetchJobs(params: JobsQueryParams): Promise<Job[]> {
   try {
     const accessToken = await getAccessToken()
     
-    const searchParams = new URLSearchParams()
+    const searchParams = new URLSearchParams({
+      // Paramètres par défaut
+      range: '0-14',
+      sort: '1'
+    })
+
     if (params.query) {
       searchParams.append('motsCles', params.query)
     }
@@ -58,13 +63,21 @@ export async function fetchJobs(params: JobsQueryParams): Promise<Job[]> {
       searchParams.append('commune', params.location)
     }
     if (params.page) {
-      const range = params.pageSize || 10
+      const range = params.pageSize || 15
       const start = (params.page - 1) * range
-      searchParams.append('range', `${start}-${start + range - 1}`)
+      searchParams.set('range', `${start}-${start + range - 1}`)
     }
     
     const url = `${POLE_EMPLOI_API_URL}?${searchParams.toString()}`
     
+    console.log('Tentative de récupération des offres:', {
+      url,
+      headers: {
+        'Authorization': 'Bearer [...]',
+        'Accept': 'application/json'
+      }
+    })
+
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -73,10 +86,20 @@ export async function fetchJobs(params: JobsQueryParams): Promise<Job[]> {
     })
 
     if (!response.ok) {
-      throw new Error('Failed to fetch jobs')
+      const errorText = await response.text()
+      console.error('Erreur lors de la récupération des offres:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      })
+      throw new Error(`Failed to fetch jobs: ${response.status} ${response.statusText}`)
     }
     
     const data = await response.json()
+    console.log('Données reçues:', {
+      totalResults: data.resultats?.length,
+      firstResult: data.resultats?.[0]
+    })
     
     // Transformer les données de Pôle Emploi vers notre format standardisé
     return data.resultats.map((job: any) => ({
