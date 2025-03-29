@@ -125,18 +125,34 @@ export async function fetchJobs(params: JobsQueryParams): Promise<Job[]> {
     }
     
     // Transformer les données de Pôle Emploi vers notre format standardisé
-    return data.resultats.map((job: any) => ({
-      id: job.id,
-      title: job.intitule,
-      company: job.entreprise?.nom || 'Entreprise confidentielle',
-      location: formatLocation(job.lieuTravail),
-      type: mapJobType(job.typeContrat),
-      description: job.description,
-      salary: formatSalary(job.salaire),
-      url: `https://candidat.pole-emploi.fr/offres/recherche/detail/${job.id}`,
-      postedAt: job.dateCreation,
-      tags: [job.secteurActiviteLibelle, ...(job.competences?.map((c: any) => c.libelle) || [])]
-    }))
+    return data.resultats.map((job: any) => {
+      // Extraire les compétences et qualités professionnelles
+      const competences = [
+        ...(job.competences?.map((c: any) => c.libelle) || []),
+        ...(job.qualitesProfessionnelles?.map((q: any) => q.libelle) || [])
+      ]
+
+      // Créer les tags en combinant secteur d'activité, type de contrat et expérience
+      const tags = [
+        job.secteurActiviteLibelle,
+        job.typeContratLibelle,
+        job.experienceLibelle,
+        job.dureeTravailLibelleConverti
+      ].filter(Boolean)
+
+      return {
+        id: job.id,
+        title: job.intitule,
+        company: job.entreprise?.nom || 'Entreprise confidentielle',
+        location: formatLocation(job.lieuTravail),
+        type: mapJobType(job.typeContrat),
+        description: formatDescription(job),
+        salary: formatSalary(job.salaire),
+        url: `https://candidat.pole-emploi.fr/offres/recherche/detail/${job.id}`,
+        postedAt: job.dateCreation,
+        tags
+      }
+    })
   } catch (error) {
     console.error('Error fetching jobs:', error)
     throw error
@@ -150,7 +166,48 @@ function formatLocation(lieuTravail: any): string {
 
 function formatSalary(salaire: any): string | undefined {
   if (!salaire) return undefined
-  return `${salaire.libelle} - ${salaire.complement || ''}`
+  
+  const parts = []
+  if (salaire.libelle) parts.push(salaire.libelle)
+  if (salaire.complement1) parts.push(salaire.complement1)
+  if (salaire.complement2) parts.push(salaire.complement2)
+  
+  return parts.join(' • ')
+}
+
+function formatDescription(job: any): string {
+  const sections = []
+
+  // Description principale
+  if (job.description) {
+    sections.push(job.description)
+  }
+
+  // Compétences requises
+  if (job.competences?.length > 0) {
+    sections.push('\n\nCompétences requises :')
+    sections.push(job.competences.map((c: any) => `• ${c.libelle}`).join('\n'))
+  }
+
+  // Qualités professionnelles
+  if (job.qualitesProfessionnelles?.length > 0) {
+    sections.push('\n\nQualités professionnelles :')
+    sections.push(job.qualitesProfessionnelles.map((q: any) => `• ${q.libelle}`).join('\n'))
+  }
+
+  // Informations complémentaires
+  const infos = []
+  if (job.dureeTravailLibelle) infos.push(`Horaires : ${job.dureeTravailLibelle}`)
+  if (job.deplacementLibelle) infos.push(`Déplacements : ${job.deplacementLibelle}`)
+  if (job.experienceLibelle) infos.push(`Expérience requise : ${job.experienceLibelle}`)
+  if (job.qualificationLibelle) infos.push(`Qualification : ${job.qualificationLibelle}`)
+  
+  if (infos.length > 0) {
+    sections.push('\n\nInformations complémentaires :')
+    sections.push(infos.join('\n'))
+  }
+
+  return sections.join('\n')
 }
 
 function mapJobType(type: string): Job['type'] {
